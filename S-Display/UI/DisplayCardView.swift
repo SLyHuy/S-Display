@@ -102,8 +102,11 @@ struct DisplayCardView: View {
                 editingSize = true
             }
         } label: {
-            Text(display.diagonalInches.map(ScreenGeometry.label) ?? "Size?")
-                .underline(display.hasCustomSize)
+            HStack(spacing: 3) {
+                Text(verbatim: display.diagonalInches.map(ScreenGeometry.label) ?? "Size")
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+            }
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
