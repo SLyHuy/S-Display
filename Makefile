@@ -9,7 +9,7 @@ SHELL       := /bin/bash
 .SHELLFLAGS := -o pipefail -c
 FILTER      := grep -E 'error:|warning:|✘|Test run|\*\* (BUILD|TEST)' | grep -v appintentsmetadataprocessor
 
-.PHONY: gen build run test release install probe logs clean
+.PHONY: gen build run test release install icon probe logs clean
 
 gen:
 	xcodegen generate --quiet
@@ -33,6 +33,10 @@ install: release
 	rm -rf /Applications/S-Display.app
 	ditto $(RELEASE_APP) /Applications/S-Display.app
 	open /Applications/S-Display.app
+
+# Re-renders the app icon from scripts/make-icon.swift into the asset catalog.
+icon:
+	swift scripts/make-icon.swift
 
 # Read-only: lists displays, HiDPI stops and override files.
 probe:

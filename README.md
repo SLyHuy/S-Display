@@ -17,6 +17,7 @@ make run                # generate the Xcode project, build Debug, launch
 make test               # unit tests (pure logic only; they never touch your displays)
 make install            # Release build copied to /Applications (best for Launch at login)
 make probe              # read-only report: displays, HiDPI sizes, override files
+make icon               # re-render the app icon (scripts/make-icon.swift)
 make logs               # live log stream
 ```
 
