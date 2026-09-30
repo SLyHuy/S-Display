@@ -51,9 +51,9 @@ struct DisplayCardView: View {
                     }
                 }
                 HStack(spacing: 4) {
-                    Text("\(display.nativeWidth)×\(display.nativeHeight) ·")
+                    Text(verbatim: "\(display.nativeWidth)×\(display.nativeHeight) ·")
                     sizeMenu
-                    Text(trailingDetails)
+                    Text(verbatim: trailingDetails)
                 }
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
@@ -149,16 +149,14 @@ struct DisplayCardView: View {
                 .font(.system(size: 16))
                 .foregroundStyle(installed ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
             VStack(alignment: .leading, spacing: 2) {
-                Text(installed ? "Flexible HiDPI is on" : "Flexible HiDPI")
+                Text("Flexible HiDPI")
                     .font(.system(size: 13, weight: .medium))
-                Text(installed
-                    ? "\(display.stops.count) sharp sizes on the slider."
-                    : "Adds \(model.hiDPI.ladderCount(for: display)) sharp sizes. Needs your admin password.")
+                Text(verbatim: installed
+                    ? "On · \(display.stops.count) sizes"
+                    : "+\(model.hiDPI.ladderCount(for: display)) sizes")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
-            .layoutPriority(1)
             Spacer(minLength: 8)
             // Both directions write to /Library/Displays, so both ask for the password (hence the ellipsis).
             Button(installed ? "Disable…" : "Enable…") {
@@ -170,7 +168,9 @@ struct DisplayCardView: View {
                     }
                 }
             }
+            .fixedSize()
             .disabled(busy)
+            .help("Asks for your administrator password.")
         }
     }
 }

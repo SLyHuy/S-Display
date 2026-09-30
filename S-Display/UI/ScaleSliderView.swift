@@ -22,7 +22,7 @@ struct ScaleSliderView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("UI size").font(.system(size: 13, weight: .medium))
                 Spacer()
-                Text(readout)
+                Text(verbatim: readout)
                     .font(.system(size: 12).monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -70,7 +70,7 @@ struct ScaleSliderView: View {
     private var readout: String {
         guard let stop = selected else { return "" }
         let text = ModeLadder.textScalePercent(of: stop, nativeWidth: display.nativeWidth)
-        return "Looks like \(stop.width)×\(stop.height) · text \(text)%"
+        return "\(stop.width)×\(stop.height) · text \(text)%"
     }
 
     private func syncFromDisplay() {

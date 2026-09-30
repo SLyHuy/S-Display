@@ -97,10 +97,7 @@ private struct FooterView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-
-            Text("⌃⌥⌘B turns off the display under the pointer.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+            .help("⌃⌥⌘B turns off the display under the pointer.")
 
             Toggle("Keep turned-off displays off after restart", isOn: Binding(
                 get: { model.blackOut.keepOffAfterRestart },
