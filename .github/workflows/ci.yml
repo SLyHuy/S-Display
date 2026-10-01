@@ -1,0 +1,37 @@
+# Runs the tests and builds the app for every pull request and every push to main.
+# Branch protection can require this check before a pull request is merged.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test and build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Use the newest Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Install XcodeGen (pinned, checksum verified)
+        run: ./scripts/install-xcodegen.sh
+
+      - name: Test
+        run: |
+          xcodegen generate
+          xcodebuild -project S-Display.xcodeproj -scheme S-Display -configuration Debug \
+            -destination 'platform=macOS' -derivedDataPath build/DerivedData test
+
+      - name: Build the release configuration
+        run: |
+          xcodebuild -project S-Display.xcodeproj -scheme S-Display -configuration Release \
+            -destination 'generic/platform=macOS' -derivedDataPath build/DerivedData build

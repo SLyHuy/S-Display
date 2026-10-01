@@ -9,7 +9,7 @@ import Foundation
 final class DisplayConfigurator: Sendable {
     static let shared = DisplayConfigurator()
 
-    private let queue = DispatchQueue(label: "com.slyhuy.SDisplay.display-configuration", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.huyly.sdisplay.display-configuration", qos: .userInitiated)
 
     /// Begins a transaction, lets `body` add changes, then completes it with `option`
     /// (or cancels it if `body` fails). The result is WindowServer's own report, which can be wrong

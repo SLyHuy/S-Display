@@ -1,0 +1,12 @@
+// Release build: no certificate. The app is ad-hoc signed ("-"), which Apple Silicon
+// requires to run at all; users clear the download quarantine themselves (see README).
+PRODUCT_BUNDLE_IDENTIFIER = com.huyly.sdisplay
+PRODUCT_NAME = S-Display
+
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = -
+DEVELOPMENT_TEAM =
+
+// Apple Silicon only: SkyLight's display disconnect does not work on Intel Macs.
+ARCHS = arm64
+ONLY_ACTIVE_ARCH = NO

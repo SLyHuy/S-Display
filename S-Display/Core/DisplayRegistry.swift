@@ -78,7 +78,7 @@ private func displayReconfigured(_ display: CGDirectDisplayID, _ flags: CGDispla
 }
 
 enum Log {
-    static let displays = Logger(subsystem: "com.slyhuy.SDisplay", category: "displays")
-    static let blackOut = Logger(subsystem: "com.slyhuy.SDisplay", category: "blackout")
-    static let scaling = Logger(subsystem: "com.slyhuy.SDisplay", category: "scaling")
+    static let displays = Logger(subsystem: "com.huyly.sdisplay", category: "displays")
+    static let blackOut = Logger(subsystem: "com.huyly.sdisplay", category: "blackout")
+    static let scaling = Logger(subsystem: "com.huyly.sdisplay", category: "scaling")
 }

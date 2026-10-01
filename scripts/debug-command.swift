@@ -12,7 +12,7 @@ guard !command.isEmpty else {
 }
 let started = Date()
 DistributedNotificationCenter.default().postNotificationName(
-    Notification.Name("com.slyhuy.SDisplay.debug-command"), object: command, userInfo: nil, deliverImmediately: true
+    Notification.Name("com.huyly.sdisplay.debug-command"), object: command, userInfo: nil, deliverImmediately: true
 )
 
 // Wait for the app's "dump done" line (the dump runs after the command finishes), then print the log.
@@ -24,7 +24,7 @@ for _ in 0 ..< waitSeconds {
     Thread.sleep(forTimeInterval: 1)
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/log")
-    process.arguments = ["show", "--info", "--style", "compact", "--start", since, "--predicate", "subsystem == \"com.slyhuy.SDisplay\""]
+    process.arguments = ["show", "--info", "--style", "compact", "--start", since, "--predicate", "subsystem == \"com.huyly.sdisplay\""]
     let pipe = Pipe()
     process.standardOutput = pipe
     try process.run()

@@ -5,7 +5,7 @@ import AppKit
 /// (the same calls the menu makes) and reads the resulting state back from the log.
 @MainActor
 enum DebugCommands {
-    static let notification = Notification.Name("com.slyhuy.SDisplay.debug-command")
+    static let notification = Notification.Name("com.huyly.sdisplay.debug-command")
 
     static func install(on model: AppModel) {
         DistributedNotificationCenter.default().addObserver(forName: notification, object: nil, queue: .main) { [weak model] note in

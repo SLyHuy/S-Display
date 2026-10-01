@@ -1,0 +1,13 @@
+// Development build: separate bundle id and name so its preferences and login item
+// never collide with the release app on the same Mac.
+PRODUCT_BUNDLE_IDENTIFIER = com.huyly.sdisplay.dev
+PRODUCT_NAME = S-Display Dev
+
+// Default: ad-hoc signature (builds without an Apple ID). Copy Local.xcconfig.example
+// to Local.xcconfig and fill in your Team ID to sign with your Apple Development
+// certificate instead.
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = -
+DEVELOPMENT_TEAM =
+
+#include? "Local.xcconfig"

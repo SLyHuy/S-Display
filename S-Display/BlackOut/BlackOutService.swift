@@ -22,7 +22,10 @@ final class BlackOutService {
     @ObservationIgnored private let registry: DisplayRegistry
     @ObservationIgnored private let launchedAt = Date()
     @ObservationIgnored private var wakeWindowEnds = Date.distantPast
+    /// Between sleep and wake displays drop out of the list one by one; that darkness is not an emergency.
+    @ObservationIgnored private var asleep = false
     @ObservationIgnored private var rescueTask: Task<Void, Never>?
+    @ObservationIgnored private var rescueID = UUID()
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
     init(registry: DisplayRegistry) {
@@ -31,6 +34,11 @@ final class BlackOutService {
 
     func start() {
         let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.willSleepNotification, NSWorkspace.screensDidSleepNotification] {
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.noteSleep() }
+            })
+        }
         for name in [NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification] {
             observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.noteWake() }
@@ -227,22 +235,47 @@ final class BlackOutService {
     }
 
     /// If nothing viewable is left (say the only lit display was unplugged), turn everything back on.
+    /// Waking from sleep goes through a few seconds with no display listed while they re-enumerate,
+    /// so the darkness must last: 5 s normally, 20 s right after a wake, and never while asleep.
     private func scheduleRescueIfNeeded() {
-        guard !offRecords.isEmpty, !registry.displays.contains(where: \.isViewable) else { return }
-        rescueTask?.cancel()
+        guard !asleep, !offRecords.isEmpty, !registry.displays.contains(where: \.isViewable) else { return }
+        guard rescueTask == nil else { return }
+        let required = Date() < wakeWindowEnds ? 20 : 5
+        let id = UUID()
+        rescueID = id
         rescueTask = Task { [weak self] in
-            // This process's copy of the display list can trail WindowServer's; look again before acting.
-            try? await Task.sleep(for: .seconds(1))
-            guard !Task.isCancelled, let self, !DisplayEnumerator.hasViewableDisplay() else { return }
-            Log.blackOut.notice("no visible display left; turning everything back on")
+            defer { if self?.rescueID == id { self?.rescueTask = nil } }
+            for second in 1 ... required {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self, !self.asleep else { return }
+                if DisplayEnumerator.hasViewableDisplay() {
+                    Log.blackOut.notice("a display came back after \(second) s; no rescue needed")
+                    return
+                }
+            }
+            guard let self, !self.asleep else { return }
+            Log.blackOut.notice("no visible display for \(required) s; turning everything back on")
             await self.turnAllOn()
         }
     }
 
+    private func noteSleep() {
+        guard !asleep else { return }
+        Log.blackOut.notice("sleeping; rescue paused")
+        asleep = true
+        rescueTask?.cancel()
+        rescueTask = nil
+    }
+
     private func noteWake() {
-        wakeWindowEnds = Date().addingTimeInterval(20)
+        if asleep { Log.blackOut.notice("woke; re-checking turned-off displays") }
+        asleep = false
+        wakeWindowEnds = Date().addingTimeInterval(30)
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(3))
+            self?.registry.refresh()
+            // Settle records kept while the display set was still coming back.
+            try? await Task.sleep(for: .seconds(28))
             self?.registry.refresh()
         }
     }

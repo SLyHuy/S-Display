@@ -22,7 +22,7 @@ struct BlackOutPolicyTests {
 
     @Test func wakeTurnsResurfacedDisplaysOffAgainWhenSafe() {
         #expect(BlackOutPolicy.reconcile(isOnline: true, reason: .wake, keepOffAfterRestart: false, safeToTurnOff: true) == .turnOffAgain)
-        #expect(BlackOutPolicy.reconcile(isOnline: true, reason: .wake, keepOffAfterRestart: false, safeToTurnOff: false) == .forget)
+        #expect(BlackOutPolicy.reconcile(isOnline: true, reason: .wake, keepOffAfterRestart: false, safeToTurnOff: false) == .keep)
     }
 
     @Test func launchHonoursKeepOffAfterRestart() {

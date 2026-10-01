@@ -1,0 +1,26 @@
+# Groups the merged pull requests listed in each release's "What's Changed" section.
+# The section comes from GitHub's generated release notes (see .github/workflows/release.yml);
+# a pull request lands in the first category whose label it carries.
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+    authors:
+      - dependabot
+      - dependabot[bot]
+  categories:
+    - title: ✨ New features
+      labels:
+        - enhancement
+    - title: 🐛 Bug fixes
+      labels:
+        - bug
+    - title: 🔒 Security
+      labels:
+        - security
+    - title: 📝 Documentation
+      labels:
+        - documentation
+    - title: 🛠 Other changes
+      labels:
+        - "*"

@@ -1,6 +1,5 @@
 name: S-Display
 options:
-  bundleIdPrefix: com.slyhuy
   deploymentTarget:
     macOS: "14.0"
   developmentLanguage: en
@@ -9,30 +8,29 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
+    # The real version comes from the release tag: scripts/release.sh passes it to
+    # xcodebuild. These defaults only show up in builds made straight from Xcode.
+    MARKETING_VERSION: "0.0.0"
+    CURRENT_PROJECT_VERSION: "0"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
-    # Personal build: ad-hoc signed ("Sign to Run Locally"), no team needed.
-    CODE_SIGN_STYLE: Manual
-    CODE_SIGN_IDENTITY: "-"
-    DEVELOPMENT_TEAM: ""
 
 targets:
   S-Display:
     type: application
     platform: macOS
+    configFiles:
+      Debug: Config/Debug.xcconfig
+      Release: Config/Release.xcconfig
     sources:
       - path: S-Display
     settings:
       base:
-        PRODUCT_NAME: S-Display
-        PRODUCT_BUNDLE_IDENTIFIER: com.slyhuy.SDisplay
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_LSUIElement: YES
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        INFOPLIST_KEY_CFBundleDisplayName: S-Display
+        INFOPLIST_KEY_CFBundleDisplayName: $(PRODUCT_NAME)
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
-        INFOPLIST_KEY_NSHumanReadableCopyright: "S-Display — BlackOut and Flexible HiDPI for macOS"
+        INFOPLIST_KEY_NSHumanReadableCopyright: "© 2026 Huy Ly. MIT License."
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Private SkyLight calls and privileged writes to /Library/Displays need no sandbox.
         ENABLE_APP_SANDBOX: NO
         ENABLE_HARDENED_RUNTIME: NO
@@ -50,9 +48,11 @@ targets:
       - path: S-Display/Logic
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.slyhuy.SDisplayTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.huyly.sdisplay.tests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_STRICT_CONCURRENCY: complete
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
 
 schemes:
   S-Display:
@@ -65,3 +65,5 @@ schemes:
       config: Debug
       targets:
         - S-DisplayTests
+    archive:
+      config: Release

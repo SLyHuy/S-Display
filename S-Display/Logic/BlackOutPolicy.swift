@@ -45,7 +45,8 @@ enum BlackOutPolicy {
         guard isOnline else { return .keep }
         switch reason {
         case .wake:
-            return safeToTurnOff ? .turnOffAgain : .forget
+            // Displays return one by one after a wake; if the others aren't back yet, wait for them.
+            return safeToTurnOff ? .turnOffAgain : .keep
         case .launch:
             return keepOffAfterRestart && safeToTurnOff ? .turnOffAgain : .forget
         case .change:
