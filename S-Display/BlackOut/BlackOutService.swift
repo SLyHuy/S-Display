@@ -20,16 +20,22 @@ final class BlackOutService {
     let isSupported = PrivateAPI.canToggleDisplays
 
     @ObservationIgnored private let registry: DisplayRegistry
-    @ObservationIgnored private let launchedAt = Date()
+    @ObservationIgnored private let launchedAt: Date
     @ObservationIgnored private var wakeWindowEnds = Date.distantPast
+    /// Holds off reconciliation briefly after launch or wake so WindowServer and Dock finish rebuilding displays/Spaces.
+    @ObservationIgnored private var settleUntil: Date
     /// Between sleep and wake displays drop out of the list one by one; that darkness is not an emergency.
     @ObservationIgnored private var asleep = false
+    @ObservationIgnored private var wakeTask: Task<Void, Never>?
     @ObservationIgnored private var rescueTask: Task<Void, Never>?
     @ObservationIgnored private var rescueID = UUID()
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
     init(registry: DisplayRegistry) {
         self.registry = registry
+        let now = Date()
+        launchedAt = now
+        settleUntil = now.addingTimeInterval(2)
     }
 
     func start() {
@@ -45,15 +51,23 @@ final class BlackOutService {
             })
         }
         // Let the display set settle after login before deciding about remembered displays.
+        let launchSettle = settleUntil
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(2))
-            await self?.recoverStrandedReconnects()
-            self?.registry.refresh()
+            guard let self else { return }
+            await self.recoverStrandedReconnects()
+            if self.settleUntil <= launchSettle { self.settleUntil = .distantPast }
+            self.registry.refresh()
         }
     }
 
     func canTurnOff(_ display: DisplayInfo) -> Bool {
-        BlackOutPolicy.canTurnOff(display.id, viewable: registry.displays.filter(\.isViewable).map(\.id))
+        let busyIDs = Set(registry.displays.filter { busy.contains($0.uuid) }.map(\.id))
+        return BlackOutPolicy.canTurnOff(
+            display.id,
+            viewable: registry.displays.filter(\.isViewable).map(\.id),
+            busy: busyIDs
+        )
     }
 
     // MARK: - Off / on
@@ -61,22 +75,37 @@ final class BlackOutService {
     func turnOff(_ display: DisplayInfo) async {
         let uuid = display.uuid
         guard !busy.contains(uuid) else { return }
+        busy.insert(uuid)
+        defer { busy.remove(uuid) }
+        await performTurnOff(display)
+    }
+
+    private func performTurnOff(_ display: DisplayInfo) async {
+        let uuid = display.uuid
         errors[uuid] = nil
         guard isSupported else { return fail(uuid, .unsupported) }
         guard canTurnOff(display) else { return fail(uuid, .lastDisplay) }
-        busy.insert(uuid)
-        defer { busy.remove(uuid) }
 
         let othersBefore = registry.displays.filter { $0.id != display.id }.compactMap { other in
             other.current.map { (id: other.id, mode: $0) }
         }
+        let candidates = registry.displays.map {
+            BlackOutPolicy.DisplayCandidate(
+                id: $0.id,
+                isMain: $0.isMain,
+                isViewable: $0.isViewable,
+                isMirrorTarget: $0.isMirrorTarget,
+                isBusy: busy.contains($0.uuid)
+            )
+        }
+        let newMain = BlackOutPolicy.replacementMain(turningOff: display.id, among: candidates)
         // Written before the call: if S-Display dies mid-transaction, the next launch still offers Turn On.
         remember(OffDisplayRecord(
             uuid: uuid, lastDisplayID: display.id, name: display.name,
             vendorID: display.vendorID, productID: display.productID, turnedOffAt: .now
         ))
         Log.blackOut.info("turning off \(display.name, privacy: .public) (\(display.id))")
-        let result = await DisplayConfigurator.shared.setEnabled(false, display: display.id, option: .permanently)
+        let result = await DisplayConfigurator.shared.setEnabled(false, display: display.id, newMain: newMain, option: .permanently)
         let gone = await registry.waitUntil(timeout: .seconds(5)) { !$0.contains { $0.uuid == uuid } }
         guard gone else {
             forget(uuid)
@@ -199,15 +228,15 @@ final class BlackOutService {
 
     /// Called after every display refresh.
     func displaysChanged() {
-        let now = Date()
-        let reason: ReconcileReason = if now < wakeWindowEnds {
-            .wake
-        } else if now.timeIntervalSince(launchedAt) < 10 {
-            .launch
-        } else {
-            .change
+        if let reason = BlackOutPolicy.reconcileReason(
+            now: Date(),
+            asleep: asleep,
+            settleUntil: settleUntil,
+            wakeWindowEnds: wakeWindowEnds,
+            launchedAt: launchedAt
+        ) {
+            reconcile(reason)
         }
-        reconcile(reason)
         scheduleRescueIfNeeded()
     }
 
@@ -228,8 +257,14 @@ final class BlackOutService {
                 forget(record.uuid)
             case .turnOffAgain:
                 guard let display else { continue }
+                let uuid = display.uuid
+                busy.insert(uuid)
                 Log.blackOut.info("\(record.name, privacy: .public) came back after \(String(describing: reason)); turning it off again")
-                Task { await self.turnOff(display) }
+                Task { [weak self] in
+                    guard let self else { return }
+                    defer { self.busy.remove(uuid) }
+                    await self.performTurnOff(display)
+                }
             }
         }
     }
@@ -263,6 +298,8 @@ final class BlackOutService {
         guard !asleep else { return }
         Log.blackOut.notice("sleeping; rescue paused")
         asleep = true
+        wakeTask?.cancel()
+        wakeTask = nil
         rescueTask?.cancel()
         rescueTask = nil
     }
@@ -270,13 +307,20 @@ final class BlackOutService {
     private func noteWake() {
         if asleep { Log.blackOut.notice("woke; re-checking turned-off displays") }
         asleep = false
-        wakeWindowEnds = Date().addingTimeInterval(30)
-        Task { [weak self] in
+        let now = Date()
+        wakeWindowEnds = now.addingTimeInterval(30)
+        let wakeSettle = now.addingTimeInterval(3)
+        settleUntil = max(settleUntil, wakeSettle)
+        wakeTask?.cancel()
+        wakeTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(3))
-            self?.registry.refresh()
+            guard !Task.isCancelled, let self, !self.asleep else { return }
+            if self.settleUntil <= wakeSettle { self.settleUntil = .distantPast }
+            self.registry.refresh()
             // Settle records kept while the display set was still coming back.
             try? await Task.sleep(for: .seconds(28))
-            self?.registry.refresh()
+            guard !Task.isCancelled, !self.asleep else { return }
+            self.registry.refresh()
         }
     }
 

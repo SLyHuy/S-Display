@@ -34,9 +34,20 @@ final class DisplayConfigurator: Sendable {
         }
     }
 
-    func setEnabled(_ enabled: Bool, display: CGDirectDisplayID, option: CGConfigureOption) async -> CGError {
+    func setEnabled(
+        _ enabled: Bool,
+        display: CGDirectDisplayID,
+        newMain: CGDirectDisplayID? = nil,
+        option: CGConfigureOption
+    ) async -> CGError {
         await perform(option) { config in
-            PrivateAPI.configureDisplayEnabled(config, display, enabled: enabled)
+            if !enabled, let newMain, newMain != display {
+                let originResult = CGConfigureDisplayOrigin(config, newMain, 0, 0)
+                if originResult != .success {
+                    Log.blackOut.warning("failed to move display \(newMain) to origin before disabling \(display) (error \(originResult.rawValue))")
+                }
+            }
+            return PrivateAPI.configureDisplayEnabled(config, display, enabled: enabled)
         }
     }
 

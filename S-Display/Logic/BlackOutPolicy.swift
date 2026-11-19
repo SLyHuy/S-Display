@@ -29,15 +29,45 @@ enum ReconcileAction: Equatable, Sendable {
 }
 
 enum BlackOutPolicy {
+    struct DisplayCandidate: Equatable, Sendable {
+        let id: UInt32
+        let isMain: Bool
+        let isViewable: Bool
+        let isMirrorTarget: Bool
+        let isBusy: Bool
+    }
+
     /// A real panel someone can look at. Empty display pipes and the placeholder macOS creates once the
     /// last display is gone report vendor 0 or a four-character code ('unkn', 'virt') that EDID's 16 bits can't hold.
     static func isViewable(vendor: UInt32) -> Bool {
         vendor != 0 && vendor <= 0xFFFF
     }
 
-    /// Turning `target` off must leave at least one other viewable display.
-    static func canTurnOff(_ target: UInt32, viewable: [UInt32]) -> Bool {
-        viewable.contains { $0 != target }
+    /// Turning `target` off must leave at least one other viewable display not already in flight.
+    static func canTurnOff(_ target: UInt32, viewable: [UInt32], busy: Set<UInt32> = []) -> Bool {
+        viewable.contains { $0 != target && !busy.contains($0) }
+    }
+
+    /// When disabling the current main display, picks a remaining viewable display to move to origin (0, 0)
+    /// in the same configuration transaction so WindowServer doesn't have to guess mid-teardown.
+    static func replacementMain(turningOff target: UInt32, among displays: [DisplayCandidate]) -> UInt32? {
+        guard displays.contains(where: { $0.id == target && $0.isMain }) else { return nil }
+        return displays.first { $0.id != target && $0.isViewable && !$0.isMirrorTarget && !$0.isBusy }?.id
+    }
+
+    /// Chooses the reconciliation context for a display change, or `nil` while asleep or waiting for displays to settle.
+    static func reconcileReason(
+        now: Date,
+        asleep: Bool,
+        settleUntil: Date,
+        wakeWindowEnds: Date,
+        launchedAt: Date,
+        launchWindow: TimeInterval = 10
+    ) -> ReconcileReason? {
+        guard !asleep, now >= settleUntil else { return nil }
+        if now < wakeWindowEnds { return .wake }
+        if now.timeIntervalSince(launchedAt) < launchWindow { return .launch }
+        return .change
     }
 
     /// What to do with a remembered turned-off display after the display set changed.
