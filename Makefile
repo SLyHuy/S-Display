@@ -9,7 +9,7 @@ SHELL       := /bin/bash
 .SHELLFLAGS := -o pipefail -c
 FILTER      := grep -E 'error:|warning:|✘|Test run|\*\* (BUILD|TEST)' | grep -v appintentsmetadataprocessor
 
-.PHONY: gen build run test install release icon probe logs clean
+.PHONY: gen build run test install release homebrew icon probe logs clean
 
 gen:
 	xcodegen generate --quiet
@@ -38,6 +38,10 @@ install: gen
 # Same packaging as the GitHub release: dist/S-Display-<version>.dmg, .zip and .sha256.
 release:
 	./scripts/release.sh
+
+# Sync SLyHuy/homebrew-tap to the latest published GitHub Release (uses local gh auth).
+homebrew:
+	./scripts/publish-homebrew.sh
 
 # Re-renders the app icon from scripts/make-icon.swift into the asset catalog.
 icon:

@@ -23,6 +23,8 @@ No network access, no telemetry, no account.
 
 ### Homebrew
 
+Install with [Homebrew](https://brew.sh):
+
 ```bash
 brew install --cask SLyHuy/tap/s-display
 ```
@@ -128,6 +130,7 @@ make run                # generate the Xcode project, build and launch "S-Displa
 make test               # unit tests (pure logic only; they never touch your displays)
 make install            # Release build copied to /Applications
 make release            # dist/S-Display-<version>.dmg, .zip and .sha256, like the GitHub release
+make homebrew           # sync SLyHuy/homebrew-tap to the latest GitHub Release (uses local gh auth)
 make probe              # read-only report: displays, HiDPI sizes, override files
 make icon               # re-render the app icon (scripts/make-icon.swift)
 make logs               # live log stream
@@ -153,11 +156,11 @@ swift scripts/debug-command.swift blink 4           # soft reconnect; strand 4 r
 ### Releasing
 
 **Actions → Release → Run workflow** on `main`, pick patch / minor / major. The workflow works out the
-next version from the latest `v*` tag, runs the tests, builds on GitHub's machines, attests the build,
-publishes the DMG, ZIP and checksums with generated release notes, and updates the Homebrew cask in
-[`SLyHuy/homebrew-tap`](https://github.com/SLyHuy/homebrew-tap) when the `HOMEBREW_TAP_TOKEN` repository
-secret is set (fine-grained PAT with **Contents: Read and write** access to `SLyHuy/homebrew-tap`). CI
-runs the tests and builds on every pull request and push to `main`.
+next version from the latest `v*` tag, runs the tests, builds on GitHub's machines, attests the build, and
+publishes the DMG, ZIP and checksums with generated release notes. Once the release is live, run
+`make homebrew` locally to sync [`SLyHuy/homebrew-tap`](https://github.com/SLyHuy/homebrew-tap) to the
+latest release (using your local `gh` login, with no long-lived PAT stored in GitHub Actions). CI runs the
+tests and builds on every pull request and push to `main`.
 
 ### How it works
 
