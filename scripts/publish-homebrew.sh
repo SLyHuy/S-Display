@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Syncs SLyHuy/homebrew-tap (Casks/s-display.rb) to the latest GitHub Release of SLyHuy/S-Display.
-# Uses your local `gh` authentication — no PAT secret needs to be stored in GitHub Actions.
+# Reads release metadata via `gh` and pushes a signed commit over SSH — no PAT secret needed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-for cmd in gh jq ruby base64; do
+for cmd in gh jq ruby git; do
   command -v "$cmd" >/dev/null || { echo "$cmd is required" >&2; exit 1; }
 done
 
 RELEASE_REPO="SLyHuy/S-Display"
-TAP_REPO="SLyHuy/homebrew-tap"
+TAP_REMOTE="git@github.com:SLyHuy/homebrew-tap.git"
 CASK_PATH="Casks/s-display.rb"
 
 TMP_DIR=$(mktemp -d)
@@ -33,34 +33,20 @@ if ! [[ "$SHA256" =~ ^[0-9a-f]{64}$ ]]; then
   exit 1
 fi
 
-echo "==> Checking $TAP_REPO/$CASK_PATH"
-gh api "repos/$TAP_REPO/contents/$CASK_PATH" > "$TMP_DIR/cask.json"
-FILE_SHA=$(jq -r .sha "$TMP_DIR/cask.json")
-if ! [[ "$FILE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "Invalid blob SHA from $TAP_REPO" >&2
-  exit 1
-fi
+echo "==> Cloning SLyHuy/homebrew-tap"
+TAP_DIR="$TMP_DIR/homebrew-tap"
+git clone --quiet --depth 1 --branch main "$TAP_REMOTE" "$TAP_DIR"
 
-jq -r .content "$TMP_DIR/cask.json" | tr -d '\n' | base64 --decode > "$TMP_DIR/orig.rb"
-cp "$TMP_DIR/orig.rb" "$TMP_DIR/updated.rb"
+./scripts/update-homebrew-cask.sh "$VERSION" "$SHA256" "$TAP_DIR/$CASK_PATH"
 
-./scripts/update-homebrew-cask.sh "$VERSION" "$SHA256" "$TMP_DIR/updated.rb"
-
-if cmp -s "$TMP_DIR/orig.rb" "$TMP_DIR/updated.rb"; then
-  echo "==> $TAP_REPO is already up to date at v$VERSION"
+cd "$TAP_DIR"
+if git diff --quiet -- "$CASK_PATH"; then
+  echo "==> SLyHuy/homebrew-tap is already up to date at v$VERSION"
   exit 0
 fi
 
-diff -u "$TMP_DIR/orig.rb" "$TMP_DIR/updated.rb" || true
-
-UPDATED_B64=$(base64 < "$TMP_DIR/updated.rb" | tr -d '\n')
-jq -n \
-  --arg message "s-display $VERSION" \
-  --arg content "$UPDATED_B64" \
-  --arg sha "$FILE_SHA" \
-  --arg branch "main" \
-  '{message: $message, content: $content, sha: $sha, branch: $branch}' > "$TMP_DIR/payload.json"
-
-gh api --method PUT "repos/$TAP_REPO/contents/$CASK_PATH" --input "$TMP_DIR/payload.json" >/dev/null
-echo "==> Updated $TAP_REPO/$CASK_PATH to v$VERSION ($SHA256)"
-
+git --no-pager diff -- "$CASK_PATH"
+git add -- "$CASK_PATH"
+git commit -S -m "s-display $VERSION"
+git push origin HEAD:main
+echo "==> Updated SLyHuy/homebrew-tap/$CASK_PATH to v$VERSION ($SHA256)"
