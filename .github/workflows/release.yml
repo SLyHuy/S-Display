@@ -5,7 +5,10 @@
 # Usual way: Actions → Release → Run workflow on main, pick patch / minor / major.
 # The next version is worked out from the latest v* tag; the tag is created by the
 # release itself, so no version-bump commit is needed. Pushing a v1.2.3 tag by hand
-# also works.
+# also works (as long as the tagged commit is on main).
+#
+# After the release finishes, run `make homebrew` locally to sync SLyHuy/homebrew-tap
+# without storing any long-lived PAT secret in GitHub Actions.
 #
 # Release notes = optional highlights typed in the Run workflow form
 #               + the merged pull requests since the last release, grouped by label
@@ -28,10 +31,7 @@ on:
   push:
     tags: ["v*"]
 
-permissions:
-  contents: write      # create the tag and the GitHub Release
-  id-token: write      # sign the build attestation
-  attestations: write  # store the build attestation
+permissions: {}
 
 concurrency:
   group: release
@@ -41,10 +41,15 @@ jobs:
   release:
     name: Build and publish
     runs-on: macos-latest
+    permissions:
+      contents: write      # create the tag and the GitHub Release
+      id-token: write      # sign the build attestation
+      attestations: write  # store the build attestation
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          fetch-depth: 0  # all tags and history: version and build number come from them
+          fetch-depth: 0              # all tags and history: version and build number come from them
+          persist-credentials: false  # never leave GITHUB_TOKEN in .git/config during build/test
 
       - name: Work out the version
         id: version
@@ -52,6 +57,11 @@ jobs:
           BUMP: ${{ inputs.bump }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+            if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+              echo "Tagged commit $GITHUB_SHA is not on main" >&2
+              exit 1
+            fi
             VERSION="${GITHUB_REF_NAME#v}"
           else
             if [ "$GITHUB_REF" != "refs/heads/main" ]; then

@@ -41,6 +41,7 @@ final class HiDPIOverrideService {
     }
 
     func install(for display: DisplayInfo) async {
+        guard !display.isBuiltin else { return }
         await run(display) {
             try self.writeOverride(for: display)
             try await self.reload(display, upgradeToHiDPI: true)

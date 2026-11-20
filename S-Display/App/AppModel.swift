@@ -10,6 +10,7 @@ final class AppModel {
     let blackOut: BlackOutService
     let resolution: ResolutionService
     let hiDPI: HiDPIOverrideService
+    let brightness: BrightnessService
 
     private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
     private(set) var launchAtLoginError: String?
@@ -18,9 +19,11 @@ final class AppModel {
         blackOut = BlackOutService(registry: registry)
         resolution = ResolutionService(registry: registry)
         hiDPI = HiDPIOverrideService(registry: registry, blackOut: blackOut, resolution: resolution)
+        brightness = BrightnessService(registry: registry)
         registry.onChange = { [weak self] in self?.displaysChanged() }
         registry.start()
         blackOut.start()
+        brightness.start()
         registerHotkeys()
         #if DEBUG
         DebugCommands.install(on: self)
@@ -73,6 +76,7 @@ final class AppModel {
     /// Plain Quit leaves turned-off displays off (they come back with a replug, a restart or S-Display).
     func quit(turningDisplaysOn: Bool) {
         Task {
+            brightness.restoreBeforeQuit()
             if turningDisplaysOn { await blackOut.turnAllOn() }
             NSApp.terminate(nil)
         }
@@ -81,6 +85,7 @@ final class AppModel {
     private func displaysChanged() {
         blackOut.displaysChanged()
         hiDPI.refresh(registry.displays)
+        brightness.displaysChanged()
     }
 
     private func registerHotkeys() {

@@ -5,11 +5,27 @@ import SwiftUI
 struct ScaleSliderView: View {
     let display: DisplayInfo
     let busy: Bool
+    var showHeader: Bool = true
+    @Binding var previewReadout: String?
     let apply: (ModeStop) -> Void
 
     @State private var index: Double = 0
     @State private var isEditing = false
     @State private var pendingApply: Task<Void, Never>?
+
+    init(
+        display: DisplayInfo,
+        busy: Bool,
+        showHeader: Bool = true,
+        previewReadout: Binding<String?> = .constant(nil),
+        apply: @escaping (ModeStop) -> Void
+    ) {
+        self.display = display
+        self.busy = busy
+        self.showHeader = showHeader
+        self._previewReadout = previewReadout
+        self.apply = apply
+    }
 
     private var stops: [ModeStop] { display.stops }
 
@@ -19,17 +35,20 @@ struct ScaleSliderView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("UI size").font(.system(size: 13, weight: .medium))
-                Spacer()
-                Text(verbatim: readout)
-                    .font(.system(size: 12).monospacedDigit())
-                    .foregroundStyle(.secondary)
+            if showHeader {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("UI size").font(.system(size: 13, weight: .medium))
+                    Spacer()
+                    Text(verbatim: readout)
+                        .font(.system(size: 12).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if stops.count >= 2 {
                 Slider(value: $index, in: 0 ... Double(stops.count - 1), step: 1) { editing in
                     isEditing = editing
+                    updatePreviewReadout()
                     if !editing { scheduleApply() }
                 }
                 HStack {
@@ -63,14 +82,25 @@ struct ScaleSliderView: View {
         }
         .disabled(busy)
         .onAppear(perform: syncFromDisplay)
+        .onChange(of: index) { updatePreviewReadout() }
         .onChange(of: display.current) { syncFromDisplay() }
         .onChange(of: display.stops) { syncFromDisplay() }
+        .onDisappear { previewReadout = nil }
     }
 
     private var readout: String {
         guard let stop = selected else { return "" }
         let text = ModeLadder.textScalePercent(of: stop, nativeWidth: display.nativeWidth)
-        return "\(stop.width)×\(stop.height) · text \(text)%"
+        return "\(stop.width)×\(stop.height) · \(text)%"
+    }
+
+    private func updatePreviewReadout() {
+        guard isEditing, let stop = selected else {
+            previewReadout = nil
+            return
+        }
+        let text = ModeLadder.textScalePercent(of: stop, nativeWidth: display.nativeWidth)
+        previewReadout = "\(stop.width)×\(stop.height) · \(text)%"
     }
 
     private func syncFromDisplay() {

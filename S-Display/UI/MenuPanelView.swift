@@ -10,6 +10,7 @@ struct MenuPanelView: View {
                 Spacer()
                 Button {
                     model.registry.refresh()
+                    model.brightness.refreshVisibleValues()
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
@@ -36,6 +37,10 @@ struct MenuPanelView: View {
         }
         .padding(16)
         .frame(width: 420)
+        .fixedSize(horizontal: false, vertical: true)
+        .onAppear {
+            model.brightness.refreshVisibleValues()
+        }
     }
 }
 
@@ -99,6 +104,12 @@ private struct FooterView: View {
             .buttonStyle(.borderless)
             .help("⌃⌥⌘B turns off the display under the pointer.")
 
+            Toggle("Sync brightness across displays", isOn: Binding(
+                get: { model.brightness.syncEnabled },
+                set: { model.brightness.setSyncEnabled($0) }
+            ))
+            .help(syncTooltip)
+
             Toggle("Keep turned-off displays off after restart", isOn: Binding(
                 get: { model.blackOut.keepOffAfterRestart },
                 set: { model.blackOut.keepOffAfterRestart = $0 }
@@ -120,5 +131,15 @@ private struct FooterView: View {
         }
         .toggleStyle(.checkbox)
         .font(.system(size: 13))
+    }
+
+    private var syncTooltip: String {
+        guard let leader = model.brightness.syncLeader else {
+            return "Secondary displays follow the primary display's brightness while keeping each monitor's manual offset."
+        }
+        if leader.isBuiltin {
+            return "Other displays follow \(leader.name) (keyboard brightness keys or slider) while keeping each monitor's manual offset."
+        }
+        return "Other displays follow \(leader.name). Adjust any secondary display to calibrate and remember its offset."
     }
 }

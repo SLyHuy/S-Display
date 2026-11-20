@@ -4,10 +4,14 @@
 [![Release](https://img.shields.io/github/v/release/SLyHuy/S-Display)](https://github.com/SLyHuy/S-Display/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-A small, free macOS menu bar app with two display tools:
+A small, free macOS menu bar app with three display tools:
 
 - **BlackOut**: turn a display fully off. It leaves the layout, windows move to the remaining displays,
   the monitor gets no signal and the GPU stops drawing it. Like Lunar's BlackOut or BetterDisplay's Disconnect.
+- **Brightness & Sync**: hardware brightness control for MacBook displays (`DisplayServices`) and external
+  monitors (`DDC/CI`, with automatic software gamma fallback). Optionally sync external monitors harmoniously
+  with MacBook brightness (including the standard macOS/Apple keyboard brightness keys) while remembering
+  each monitor's manual offset.
 - **Sharp HiDPI scaling**: Retina-style rendering on 1440p and 4K monitors, with a slider for how large
   text and UI look. Flexible HiDPI adds a size every 16 points. Like BetterDisplay's Flexible Scaling.
 
@@ -20,22 +24,34 @@ No network access, no telemetry, no account.
 
 ## Install
 
-S-Display is free and released **without an Apple certificate** (ad-hoc signed), so the first launch takes a few extra steps:
+### Homebrew
+
+Install with [Homebrew](https://brew.sh):
+
+```bash
+brew install --cask SLyHuy/tap/s-display
+```
+
+### Manual download
 
 1. Download `S-Display-x.y.z.dmg` (or the `.zip`) from the [Releases page](https://github.com/SLyHuy/S-Display/releases/latest).
 2. Open the DMG and drag **S-Display.app** into **Applications**.
-3. Open S-Display. macOS blocks it because it is not notarized:
-   open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
+
+### First launch
+
+S-Display is free and released **without an Apple certificate** (ad-hoc signed), so macOS Gatekeeper blocks the first launch:
+
+1. Open S-Display, then open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
    Or run in Terminal:
    ```bash
    xattr -dr com.apple.quarantine /Applications/S-Display.app
    ```
-4. Click the display icon in the menu bar. Turn on **Launch at login** if you want it there after every restart.
+2. Click the display icon in the menu bar. Turn on **Launch at login** if you want it there after every restart.
 
 To check a download really was built from this repository:
-`gh attestation verify S-Display-x.y.z.dmg -R SLyHuy/S-Display`, or compare `shasum -a 256` with the `.sha256` file.
+`gh attestation verify S-Display-x.y.z.dmg -R SLyHuy/S-Display` (or `gh attestation verify "$(brew --cache --cask SLyHuy/tap/s-display)" -R SLyHuy/S-Display` for Homebrew), or compare `shasum -a 256` with the `.sha256` file.
 
-**Updating:** quit S-Display (use **Turn All On & Quit** if a display is off), replace the app in Applications, open it again.
+**Updating:** quit S-Display (use **Turn All On & Quit** if a display is off), then run `brew upgrade --cask s-display` (or replace the app in Applications manually) and open it again.
 
 ## Using it
 
@@ -45,6 +61,12 @@ Each connected display gets a card in the menu:
   Turned-off displays are listed under **Turned off** with a **Turn On** button.
 - **Screen size** (the `27" ▾` next to the resolution): some monitors report the wrong size.
   Pick the real diagonal so PPI and the **Recommended** size are right.
+- **Brightness slider**: adjusts native brightness on built-in/Apple displays and hardware DDC/CI backlight
+  on external monitors (falling back to software gamma dimming if the monitor doesn't respond to DDC).
+  With **Sync brightness across displays** enabled, adjusting the primary display (built-in display when online,
+  including macOS/Apple keyboard brightness keys, or the Main external display otherwise) moves all secondary
+  displays in lockstep. Dragging any secondary display's slider adjusts only that display and remembers its
+  offset (`+15%`, `-10%`, etc.) relative to the primary display; click the offset pill to reset it to `0%`.
 - **UI size slider**: every HiDPI size macOS offers for that display, from the largest text (left)
   to the most space (right). It applies when you release the knob. **Recommended** picks about
   110 points per inch, what macOS aims for on external displays (looks like 2560×1440 on 27").
@@ -90,8 +112,8 @@ sudo rm /Library/Displays/Contents/Resources/Overrides/DisplayVendorID-<vendor>/
 ## Uninstall
 
 1. In S-Display, click **Disable…** on every display with Flexible HiDPI on, then **Turn All On & Quit**.
-2. Delete `/Applications/S-Display.app`.
-3. Optional: `defaults delete com.huyly.sdisplay` and remove `~/Library/Application Support/S-Display`.
+2. If installed via Homebrew: `brew uninstall --cask s-display` (add `--zap` to also remove preferences and Application Support data).
+   Otherwise delete `/Applications/S-Display.app` and optionally run `defaults delete com.huyly.sdisplay` and remove `~/Library/Application Support/S-Display`.
 
 ## Privacy and safety
 
@@ -111,6 +133,7 @@ make run                # generate the Xcode project, build and launch "S-Displa
 make test               # unit tests (pure logic only; they never touch your displays)
 make install            # Release build copied to /Applications
 make release            # dist/S-Display-<version>.dmg, .zip and .sha256, like the GitHub release
+make homebrew           # sync SLyHuy/homebrew-tap to the latest GitHub Release (uses local gh auth)
 make probe              # read-only report: displays, HiDPI sizes, override files
 make icon               # re-render the app icon (scripts/make-icon.swift)
 make logs               # live log stream
@@ -136,9 +159,11 @@ swift scripts/debug-command.swift blink 4           # soft reconnect; strand 4 r
 ### Releasing
 
 **Actions → Release → Run workflow** on `main`, pick patch / minor / major. The workflow works out the
-next version from the latest `v*` tag, runs the tests, builds on GitHub's machines, attests the build and
-publishes the DMG, ZIP and checksums with generated release notes. CI runs the tests and builds on every
-pull request and push to `main`.
+next version from the latest `v*` tag, runs the tests, builds on GitHub's machines, attests the build, and
+publishes the DMG, ZIP and checksums with generated release notes. Once the release is live, run
+`make homebrew` locally to sync [`SLyHuy/homebrew-tap`](https://github.com/SLyHuy/homebrew-tap) to the
+latest release (using your local `gh` login, with no long-lived PAT stored in GitHub Actions). CI runs the
+tests and builds on every pull request and push to `main`.
 
 ### How it works
 
@@ -148,6 +173,7 @@ pull request and push to `main`.
 | Confirmation | WindowServer's result codes can be wrong both ways, so every operation waits for the display reconfiguration callback to show the new state (no polling, 5–8 s timeout, no automatic retries). |
 | Safety | Last-visible-display guard; other displays' modes restored if macOS moves them; if nothing visible is left for 5 s (20 s right after a wake, never while asleep), everything is turned back on. |
 | UI size | CoreGraphics modes plus HiDPI modes only SkyLight lists (a 1440p panel natively has looks-like 1600, 1920 and 2560 HiDPI hidden this way), applied with `CGConfigureDisplayWithDisplayMode` or `CGSConfigureDisplayMode`. |
+| Brightness & Sync | Built-in and Apple displays use `DisplayServices` (`DisplayServicesGetBrightness` / `DisplayServicesSetBrightness` and push notifications via `DisplayServicesRegisterForBrightnessChangeNotifications`). External monitors use VESA DDC/CI (VCP `0x10`) over Apple Silicon `IOAVService` I2C matched by IORegistry port token (with EDID fallback), falling back to per-display CoreGraphics gamma tables when DDC is unavailable. |
 | Flexible HiDPI | `scale-resolutions` override at `/Library/Displays/Contents/Resources/Overrides/DisplayVendorID-%x/DisplayProductID-%x`, written as root via AppleScript, then a soft reconnect (off, then on) so macOS rebuilds the mode list. A marker in UserDefaults covers the blink: if S-Display dies with the display off, the next launch turns it back on (`.forAppOnly` doesn't do this on macOS 27; a display disabled that way stays off after the process dies). A file S-Display didn't write is backed up to `~/Library/Application Support/S-Display/OverrideBackups` and restored on Disable. |
 
 Private symbols are resolved with `dlsym`, so if a macOS update removes one, the matching feature is hidden
