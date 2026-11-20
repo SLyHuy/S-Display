@@ -4,10 +4,14 @@
 [![Release](https://img.shields.io/github/v/release/SLyHuy/S-Display)](https://github.com/SLyHuy/S-Display/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-A small, free macOS menu bar app with two display tools:
+A small, free macOS menu bar app with three display tools:
 
 - **BlackOut**: turn a display fully off. It leaves the layout, windows move to the remaining displays,
   the monitor gets no signal and the GPU stops drawing it. Like Lunar's BlackOut or BetterDisplay's Disconnect.
+- **Brightness & Sync**: hardware brightness control for MacBook displays (`DisplayServices`) and external
+  monitors (`DDC/CI`, with automatic software gamma fallback). Optionally sync external monitors harmoniously
+  with MacBook brightness (including the standard macOS/Apple keyboard brightness keys) while remembering
+  each monitor's manual offset.
 - **Sharp HiDPI scaling**: Retina-style rendering on 1440p and 4K monitors, with a slider for how large
   text and UI look. Flexible HiDPI adds a size every 16 points. Like BetterDisplay's Flexible Scaling.
 
@@ -42,6 +46,12 @@ Each connected display gets a card in the menu:
   Turned-off displays are listed under **Turned off** with a **Turn On** button.
 - **Screen size** (the `27" ▾` next to the resolution): some monitors report the wrong size.
   Pick the real diagonal so PPI and the **Recommended** size are right.
+- **Brightness slider**: adjusts native brightness on built-in/Apple displays and hardware DDC/CI backlight
+  on external monitors (falling back to software gamma dimming if the monitor doesn't respond to DDC).
+  With **Sync brightness across displays** enabled, adjusting the primary display (built-in display when online,
+  including macOS/Apple keyboard brightness keys, or the Main external display otherwise) moves all secondary
+  displays in lockstep. Dragging any secondary display's slider adjusts only that display and remembers its
+  offset (`+15%`, `-10%`, etc.) relative to the primary display; click the offset pill to reset it to `0%`.
 - **UI size slider**: every HiDPI size macOS offers for that display, from the largest text (left)
   to the most space (right). It applies when you release the knob. **Recommended** picks about
   110 points per inch, what macOS aims for on external displays (looks like 2560×1440 on 27").
@@ -145,6 +155,7 @@ pull request and push to `main`.
 | Confirmation | WindowServer's result codes can be wrong both ways, so every operation waits for the display reconfiguration callback to show the new state (no polling, 5–8 s timeout, no automatic retries). |
 | Safety | Last-visible-display guard; other displays' modes restored if macOS moves them; if nothing visible is left for 5 s (20 s right after a wake, never while asleep), everything is turned back on. |
 | UI size | CoreGraphics modes plus HiDPI modes only SkyLight lists (a 1440p panel natively has looks-like 1600, 1920 and 2560 HiDPI hidden this way), applied with `CGConfigureDisplayWithDisplayMode` or `CGSConfigureDisplayMode`. |
+| Brightness & Sync | Built-in and Apple displays use `DisplayServices` (`DisplayServicesGetBrightness` / `DisplayServicesSetBrightness` and push notifications via `DisplayServicesRegisterForBrightnessChangeNotifications`). External monitors use VESA DDC/CI (VCP `0x10`) over Apple Silicon `IOAVService` I2C matched by IORegistry port token (with EDID fallback), falling back to per-display CoreGraphics gamma tables when DDC is unavailable. |
 | Flexible HiDPI | `scale-resolutions` override at `/Library/Displays/Contents/Resources/Overrides/DisplayVendorID-%x/DisplayProductID-%x`, written as root via AppleScript, then a soft reconnect (off, then on) so macOS rebuilds the mode list. A marker in UserDefaults covers the blink: if S-Display dies with the display off, the next launch turns it back on (`.forAppOnly` doesn't do this on macOS 27; a display disabled that way stays off after the process dies). A file S-Display didn't write is backed up to `~/Library/Application Support/S-Display/OverrideBackups` and restored on Disable. |
 
 Private symbols are resolved with `dlsym`, so if a macOS update removes one, the matching feature is hidden

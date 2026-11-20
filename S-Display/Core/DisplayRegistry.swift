@@ -81,4 +81,5 @@ enum Log {
     static let displays = Logger(subsystem: "com.huyly.sdisplay", category: "displays")
     static let blackOut = Logger(subsystem: "com.huyly.sdisplay", category: "blackout")
     static let scaling = Logger(subsystem: "com.huyly.sdisplay", category: "scaling")
+    static let brightness = Logger(subsystem: "com.huyly.sdisplay", category: "brightness")
 }

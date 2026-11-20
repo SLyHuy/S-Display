@@ -6,6 +6,9 @@ enum Preferences {
     private static let pendingReconnectsKey = "pendingReconnects"
     private static let keepOffAfterRestartKey = "keepOffAfterRestart"
     private static let screenSizeOverridesKey = "screenSizeOverrides"
+    private static let syncBrightnessWithBuiltInKey = "syncBrightnessWithBuiltIn"
+    private static let brightnessOffsetsKey = "brightnessOffsets"
+    private static let softwareBrightnessKey = "softwareBrightness"
 
     static var offRecords: [OffDisplayRecord] {
         get { records(forKey: offRecordsKey) }
@@ -37,6 +40,23 @@ enum Preferences {
     static var keepOffAfterRestart: Bool {
         get { UserDefaults.standard.bool(forKey: keepOffAfterRestartKey) }
         set { UserDefaults.standard.set(newValue, forKey: keepOffAfterRestartKey) }
+    }
+
+    static var syncBrightnessWithBuiltIn: Bool {
+        get { UserDefaults.standard.bool(forKey: syncBrightnessWithBuiltInKey) }
+        set { UserDefaults.standard.set(newValue, forKey: syncBrightnessWithBuiltInKey) }
+    }
+
+    /// Calibrated brightness offset (`external - builtIn`) per display UUID, applied while sync is on.
+    static var brightnessOffsets: [String: Double] {
+        get { (UserDefaults.standard.dictionary(forKey: brightnessOffsetsKey) as? [String: Double]) ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: brightnessOffsetsKey) }
+    }
+
+    /// Remembered brightness for displays that fall back to software gamma dimming, by display UUID.
+    static var softwareBrightness: [String: Double] {
+        get { (UserDefaults.standard.dictionary(forKey: softwareBrightnessKey) as? [String: Double]) ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: softwareBrightnessKey) }
     }
 
     /// Copies of override files that existed before S-Display replaced them, restored on Remove.

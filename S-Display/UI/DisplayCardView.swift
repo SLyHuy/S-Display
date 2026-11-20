@@ -6,22 +6,27 @@ struct DisplayCardView: View {
 
     @State private var editingSize = false
     @State private var sizeText = ""
+    @State private var scalingExpanded = false
+    @State private var hoveringScaling = false
+    @State private var previewScaleReadout: String?
 
     private var busy: Bool { model.isBusy(display.uuid) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             header
             if editingSize { customSizeEditor }
+            if model.brightness.isAvailable(for: display) {
+                BrightnessSliderView(service: model.brightness, display: display, busy: busy)
+            }
+            Divider()
+                .opacity(0.6)
             if display.isMirrorTarget {
                 Text("Mirroring another display. Change the size on that display.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             } else {
-                ScaleSliderView(display: display, busy: busy) { stop in
-                    Task { await model.resolution.apply(stop, to: display) }
-                }
-                sharpnessRow
+                scalingSection
             }
             if let error = model.error(for: display.uuid) {
                 Text(error)
@@ -32,11 +37,83 @@ struct DisplayCardView: View {
         }
         .padding(14)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+        .onAppear {
+            if display.isBuiltin, model.hiDPI.isInstalled(display) {
+                scalingExpanded = true
+            }
+        }
+    }
+
+    private var scalingSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    scalingExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(scalingExpanded ? 90 : 0))
+                        .frame(width: 10)
+                    Text("UI size & HiDPI")
+                        .font(.system(size: 13, weight: .medium))
+                    if display.isBuiltin, model.hiDPI.isInstalled(display) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.orange)
+                    }
+                    Spacer()
+                    Text(verbatim: previewScaleReadout ?? currentScaleSummary)
+                        .font(.system(size: 12).monospacedDigit())
+                        .foregroundStyle(scaleSummaryColor)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .background(hoveringScaling ? Color.primary.opacity(0.06) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, -6)
+            .padding(.vertical, -2)
+            .onHover { hoveringScaling = $0 }
+            .help(scalingExpanded ? "Hide UI size and Flexible HiDPI controls" : "Show UI size and Flexible HiDPI controls")
+
+            if scalingExpanded {
+                ScaleSliderView(
+                    display: display,
+                    busy: busy,
+                    showHeader: false,
+                    previewReadout: $previewScaleReadout
+                ) { stop in
+                    Task { await model.resolution.apply(stop, to: display) }
+                }
+                if !display.isBuiltin || model.hiDPI.isInstalled(display) {
+                    sharpnessRow
+                }
+            }
+        }
+    }
+
+    private var currentScaleSummary: String {
+        guard let current = display.current else { return "" }
+        if current.isHiDPI, display.nativeWidth > 0 {
+            let percent = Int((Double(display.nativeWidth) / Double(current.width) * 100).rounded())
+            return "\(current.width)×\(current.height) · \(percent)%"
+        }
+        return "\(current.width)×\(current.height) · 1x"
+    }
+
+    private var scaleSummaryColor: Color {
+        if previewScaleReadout != nil { return .primary }
+        if let current = display.current, !current.isHiDPI { return .orange }
+        return .secondary
     }
 
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: "display")
+            Image(systemName: display.isBuiltin ? "laptopcomputer" : "display")
                 .font(.system(size: 24))
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 3) {
@@ -148,15 +225,15 @@ struct DisplayCardView: View {
     private var sharpnessRow: some View {
         let installed = model.hiDPI.isInstalled(display)
         return HStack(spacing: 10) {
-            Image(systemName: installed ? "checkmark.seal.fill" : "wand.and.stars")
+            Image(systemName: display.isBuiltin ? "exclamationmark.triangle.fill" : (installed ? "checkmark.seal.fill" : "wand.and.stars"))
                 .font(.system(size: 16))
-                .foregroundStyle(installed ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
+                .foregroundStyle(display.isBuiltin ? AnyShapeStyle(.orange) : (installed ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary)))
             VStack(alignment: .leading, spacing: 2) {
                 Text("Flexible HiDPI")
                     .font(.system(size: 13, weight: .medium))
-                Text(verbatim: installed
-                    ? "On · \(display.stops.count) sizes"
-                    : "+\(model.hiDPI.ladderCount(for: display)) sizes")
+                Text(verbatim: display.isBuiltin
+                    ? "Installed on built-in display · disable to restore native brightness"
+                    : (installed ? "On · \(display.stops.count) sizes" : "+\(model.hiDPI.ladderCount(for: display)) sizes"))
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }

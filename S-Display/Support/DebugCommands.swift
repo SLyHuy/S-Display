@@ -19,6 +19,7 @@ enum DebugCommands {
 
 extension AppModel {
     /// Commands: dump | off <display> | on <display> | all-on | size <display> <looks-like width>
+    /// | brightness <display> <0..100> | brightness-sync <on|off> | brightness-reset-offset <display>
     /// | hidpi-install <display> | hidpi-remove <display> | blink <display> | strand <display>.
     /// <display> is an ID, UUID or name.
     func runDebugCommand(_ command: String) async {
@@ -43,6 +44,16 @@ extension AppModel {
                let stop = display.stops.first(where: { $0.width == width }) {
                 await resolution.apply(stop, to: display)
             }
+        case "brightness":
+            if let display, words.count > 2, let percent = Double(words[2]) {
+                brightness.setBrightness(percent / 100.0, for: display, persist: true)
+            }
+        case "brightness-sync":
+            if words.count > 1 {
+                brightness.setSyncEnabled(words[1] == "on" || words[1] == "true" || words[1] == "1")
+            }
+        case "brightness-reset-offset":
+            if let display { brightness.resetOffset(for: display) }
         case "hidpi-install":
             if let display { await hiDPI.install(for: display) }
         case "hidpi-remove":
@@ -67,9 +78,13 @@ extension AppModel {
                 if case .skyLight = stop.mode.source { return "\(stop.width)*" }
                 return "\(stop.width)"
             }
-            let line = "display \(display.id) '\(display.name)' uuid=\(display.uuid) native=\(display.nativeWidth)x\(display.nativeHeight) "
+            let brMethod = brightness.method(for: display)?.rawValue ?? (brightness.probing.contains(display.uuid) ? "probing" : "-")
+            let brVal = brightness.brightness(for: display).map(BrightnessSync.percentLabel) ?? "-"
+            let brOffset = BrightnessSync.offsetLabel(brightness.offset(for: display)) ?? "0%"
+            let line = "display \(display.id) '\(display.name)' uuid=\(display.uuid) builtin=\(display.isBuiltin) native=\(display.nativeWidth)x\(display.nativeHeight) "
                 + "current=\(current) stops=[\(stops.joined(separator: " "))] currentStop=\(display.currentStopIndex.map(String.init) ?? "-") "
                 + "recommended=\(display.recommendedStopIndex.map { String(display.stops[$0].width) } ?? "-") "
+                + "brightness=\(brVal)(\(brMethod),offset=\(brOffset)) "
                 + "canTurnOff=\(blackOut.canTurnOff(display)) hidpiInstalled=\(hiDPI.isInstalled(display)) "
                 + "busy=\(isBusy(display.uuid)) error=\(error(for: display.uuid) ?? "-")"
             Log.displays.notice("\(line, privacy: .public)")
@@ -77,7 +92,7 @@ extension AppModel {
         for record in blackOut.offRecords {
             Log.displays.notice("off-record '\(record.name, privacy: .public)' uuid=\(record.uuid, privacy: .public) lastID=\(record.lastDisplayID) error=\(self.blackOut.errors[record.uuid] ?? "-", privacy: .public)")
         }
-        Log.displays.notice("dump done: \(self.registry.displays.count) online, \(self.blackOut.offRecords.count) off")
+        Log.displays.notice("dump done: \(self.registry.displays.count) online, \(self.blackOut.offRecords.count) off, brightnessSync=\(self.brightness.syncEnabled) leader=\(self.brightness.syncLeader?.name ?? "-", privacy: .public)")
     }
 }
 #endif

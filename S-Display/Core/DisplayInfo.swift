@@ -9,7 +9,11 @@ struct DisplayInfo: Identifiable, Hashable, Sendable {
     let name: String
     let vendorID: UInt32
     let productID: UInt32
+    let serialNumber: UInt32
     let isMain: Bool
+    let isBuiltin: Bool
+    /// CoreDisplay's IORegistry path (e.g. `.../dispext0@.../IOMobileFramebufferShim`), used to match DDC services.
+    let ioDisplayLocation: String?
     /// The display this one mirrors, or 0.
     let mirrorsDisplay: CGDirectDisplayID
     let physicalWidthMM: Double?
@@ -113,7 +117,10 @@ enum DisplayEnumerator {
             name: name(from: info) ?? "Display \(display)",
             vendorID: CGDisplayVendorNumber(display),
             productID: CGDisplayModelNumber(display),
+            serialNumber: CGDisplaySerialNumber(display),
             isMain: CGDisplayIsMain(display) != 0,
+            isBuiltin: CGDisplayIsBuiltin(display) != 0,
+            ioDisplayLocation: info["IODisplayLocation"] as? String,
             mirrorsDisplay: CGDisplayMirrorsDisplay(display),
             physicalWidthMM: physical.width,
             physicalHeightMM: physical.height,

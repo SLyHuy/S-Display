@@ -14,6 +14,8 @@ let verbose = CommandLine.arguments.contains("-v")
 let skyLight = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY)
 let coreGraphics = dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", RTLD_LAZY)
 let coreDisplay = dlopen("/System/Library/Frameworks/CoreDisplay.framework/CoreDisplay", RTLD_LAZY)
+let displayServices = dlopen("/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices", RTLD_LAZY)
+let ioKit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_LAZY)
 
 func symbol(_ names: [String], in handles: [UnsafeMutableRawPointer?]) -> (String, UnsafeMutableRawPointer)? {
     for name in names {
@@ -36,6 +38,9 @@ let checks: [(String, [String], [UnsafeMutableRawPointer?])] = [
     ("mode description", ["CGSGetDisplayModeDescriptionOfLength"], [coreGraphics, skyLight]),
     ("configure mode", ["CGSConfigureDisplayMode"], [coreGraphics, skyLight]),
     ("display info", ["CoreDisplay_DisplayCreateInfoDictionary"], [coreDisplay]),
+    ("native brightness", ["DisplayServicesGetBrightness"], [displayServices]),
+    ("brightness notify", ["DisplayServicesRegisterForBrightnessChangeNotifications"], [displayServices]),
+    ("ddc i2c", ["IOAVServiceWriteI2C"], [ioKit]),
 ]
 print("Private API")
 for (label, names, handles) in checks {
