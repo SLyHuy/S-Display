@@ -17,6 +17,9 @@ A small, free macOS menu bar app with three display tools:
 
 No network access, no telemetry, no account.
 
+<img width="1600" height="1200" alt="s-display-facebook" src="https://github.com/user-attachments/assets/60bd2086-91c9-45c0-bd7c-5b9a5a0d10a1" />
+
+
 **Requirements:** an Apple Silicon Mac (M1 or later) and macOS 14 Sonoma or later.
 
 ## Install
