@@ -5,7 +5,7 @@
 # Usual way: Actions → Release → Run workflow on main, pick patch / minor / major.
 # The next version is worked out from the latest v* tag; the tag is created by the
 # release itself, so no version-bump commit is needed. Pushing a v1.2.3 tag by hand
-# also works.
+# also works (as long as the tagged commit is on main).
 #
 # Release notes = optional highlights typed in the Run workflow form
 #               + the merged pull requests since the last release, grouped by label
@@ -28,10 +28,7 @@ on:
   push:
     tags: ["v*"]
 
-permissions:
-  contents: write      # create the tag and the GitHub Release
-  id-token: write      # sign the build attestation
-  attestations: write  # store the build attestation
+permissions: {}
 
 concurrency:
   group: release
@@ -41,10 +38,18 @@ jobs:
   release:
     name: Build and publish
     runs-on: macos-latest
+    permissions:
+      contents: write      # create the tag and the GitHub Release
+      id-token: write      # sign the build attestation
+      attestations: write  # store the build attestation
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      dmg_sha256: ${{ steps.publish.outputs.dmg_sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          fetch-depth: 0  # all tags and history: version and build number come from them
+          fetch-depth: 0              # all tags and history: version and build number come from them
+          persist-credentials: false  # never leave GITHUB_TOKEN in .git/config during build/test
 
       - name: Work out the version
         id: version
@@ -52,6 +57,11 @@ jobs:
           BUMP: ${{ inputs.bump }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+            if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+              echo "Tagged commit $GITHUB_SHA is not on main" >&2
+              exit 1
+            fi
             VERSION="${GITHUB_REF_NAME#v}"
           else
             if [ "$GITHUB_REF" != "refs/heads/main" ]; then
@@ -121,10 +131,16 @@ jobs:
           cat "$RUNNER_TEMP/notes.md"
 
       - name: Publish the release
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
+          DMG_SHA256=$(awk -v f="S-Display-$VERSION.dmg" '$2 == f { print $1 }' "dist/S-Display-$VERSION.sha256")
+          if ! [[ "$DMG_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "Could not read SHA-256 for S-Display-$VERSION.dmg" >&2
+            exit 1
+          fi
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
             TAG_ARGS=(--verify-tag)             # the pushed tag already exists
           else
@@ -133,3 +149,72 @@ jobs:
           gh release create "v$VERSION" \
             "dist/S-Display-$VERSION.dmg" "dist/S-Display-$VERSION.zip" "dist/S-Display-$VERSION.sha256" \
             --title "S-Display $VERSION" --notes-file "$RUNNER_TEMP/notes.md" "${TAG_ARGS[@]}"
+          echo "dmg_sha256=$DMG_SHA256" >> "$GITHUB_OUTPUT"
+
+  update-homebrew:
+    name: Update Homebrew tap
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts
+
+      - name: Update Casks/s-display.rb via GitHub Contents API
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
+          SHA256: ${{ needs.release.outputs.dmg_sha256 }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN secret is not set; skipping SLyHuy/homebrew-tap update for v$VERSION."
+            exit 0
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || ! [[ "$SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "Invalid version or SHA-256 output from release job" >&2
+            exit 1
+          fi
+
+          # Cross-check against the actual published GitHub Release asset digest.
+          RELEASE_DIGEST=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" \
+            --jq ".assets[] | select(.name == \"S-Display-$VERSION.dmg\") | .digest")
+          if [ "$RELEASE_DIGEST" != "sha256:$SHA256" ]; then
+            echo "Published asset digest ($RELEASE_DIGEST) does not match expected sha256:$SHA256" >&2
+            exit 1
+          fi
+
+          CASK_JSON="$RUNNER_TEMP/cask.json"
+          CASK_ORIGINAL="$RUNNER_TEMP/s-display.orig.rb"
+          CASK_UPDATED="$RUNNER_TEMP/s-display.rb"
+          PAYLOAD_JSON="$RUNNER_TEMP/payload.json"
+
+          gh api repos/SLyHuy/homebrew-tap/contents/Casks/s-display.rb > "$CASK_JSON"
+          FILE_SHA=$(jq -r .sha "$CASK_JSON")
+          if ! [[ "$FILE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid blob SHA from SLyHuy/homebrew-tap" >&2
+            exit 1
+          fi
+
+          jq -r .content "$CASK_JSON" | tr -d '\n' | base64 --decode > "$CASK_ORIGINAL"
+          cp "$CASK_ORIGINAL" "$CASK_UPDATED"
+          ./scripts/update-homebrew-cask.sh "$VERSION" "$SHA256" "$CASK_UPDATED"
+
+          if cmp -s "$CASK_ORIGINAL" "$CASK_UPDATED"; then
+            echo "Homebrew cask is already up to date at $VERSION"
+            exit 0
+          fi
+
+          UPDATED_B64=$(base64 < "$CASK_UPDATED" | tr -d '\n')
+          jq -n \
+            --arg message "s-display $VERSION" \
+            --arg content "$UPDATED_B64" \
+            --arg sha "$FILE_SHA" \
+            --arg branch "main" \
+            '{message: $message, content: $content, sha: $sha, branch: $branch}' > "$PAYLOAD_JSON"
+
+          gh api --method PUT repos/SLyHuy/homebrew-tap/contents/Casks/s-display.rb \
+            --input "$PAYLOAD_JSON" >/dev/null
+          echo "Updated SLyHuy/homebrew-tap Casks/s-display.rb to $VERSION ($SHA256)"

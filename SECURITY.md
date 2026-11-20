@@ -41,4 +41,6 @@ attestation. Check a download with the [GitHub CLI](https://cli.github.com):
 
 ```bash
 gh attestation verify S-Display-x.y.z.dmg -R SLyHuy/S-Display
+# Or for a Homebrew install:
+gh attestation verify "$(brew --cache --cask SLyHuy/tap/s-display)" -R SLyHuy/S-Display
 ```

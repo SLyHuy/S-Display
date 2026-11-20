@@ -21,22 +21,32 @@ No network access, no telemetry, no account.
 
 ## Install
 
-S-Display is free and released **without an Apple certificate** (ad-hoc signed), so the first launch takes a few extra steps:
+### Homebrew
+
+```bash
+brew install --cask SLyHuy/tap/s-display
+```
+
+### Manual download
 
 1. Download `S-Display-x.y.z.dmg` (or the `.zip`) from the [Releases page](https://github.com/SLyHuy/S-Display/releases/latest).
 2. Open the DMG and drag **S-Display.app** into **Applications**.
-3. Open S-Display. macOS blocks it because it is not notarized:
-   open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
+
+### First launch
+
+S-Display is free and released **without an Apple certificate** (ad-hoc signed), so macOS Gatekeeper blocks the first launch:
+
+1. Open S-Display, then open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
    Or run in Terminal:
    ```bash
    xattr -dr com.apple.quarantine /Applications/S-Display.app
    ```
-4. Click the display icon in the menu bar. Turn on **Launch at login** if you want it there after every restart.
+2. Click the display icon in the menu bar. Turn on **Launch at login** if you want it there after every restart.
 
 To check a download really was built from this repository:
-`gh attestation verify S-Display-x.y.z.dmg -R SLyHuy/S-Display`, or compare `shasum -a 256` with the `.sha256` file.
+`gh attestation verify S-Display-x.y.z.dmg -R SLyHuy/S-Display` (or `gh attestation verify "$(brew --cache --cask SLyHuy/tap/s-display)" -R SLyHuy/S-Display` for Homebrew), or compare `shasum -a 256` with the `.sha256` file.
 
-**Updating:** quit S-Display (use **Turn All On & Quit** if a display is off), replace the app in Applications, open it again.
+**Updating:** quit S-Display (use **Turn All On & Quit** if a display is off), then run `brew upgrade --cask s-display` (or replace the app in Applications manually) and open it again.
 
 ## Using it
 
@@ -97,8 +107,8 @@ sudo rm /Library/Displays/Contents/Resources/Overrides/DisplayVendorID-<vendor>/
 ## Uninstall
 
 1. In S-Display, click **Disable…** on every display with Flexible HiDPI on, then **Turn All On & Quit**.
-2. Delete `/Applications/S-Display.app`.
-3. Optional: `defaults delete com.huyly.sdisplay` and remove `~/Library/Application Support/S-Display`.
+2. If installed via Homebrew: `brew uninstall --cask s-display` (add `--zap` to also remove preferences and Application Support data).
+   Otherwise delete `/Applications/S-Display.app` and optionally run `defaults delete com.huyly.sdisplay` and remove `~/Library/Application Support/S-Display`.
 
 ## Privacy and safety
 
@@ -143,9 +153,11 @@ swift scripts/debug-command.swift blink 4           # soft reconnect; strand 4 r
 ### Releasing
 
 **Actions → Release → Run workflow** on `main`, pick patch / minor / major. The workflow works out the
-next version from the latest `v*` tag, runs the tests, builds on GitHub's machines, attests the build and
-publishes the DMG, ZIP and checksums with generated release notes. CI runs the tests and builds on every
-pull request and push to `main`.
+next version from the latest `v*` tag, runs the tests, builds on GitHub's machines, attests the build,
+publishes the DMG, ZIP and checksums with generated release notes, and updates the Homebrew cask in
+[`SLyHuy/homebrew-tap`](https://github.com/SLyHuy/homebrew-tap) when the `HOMEBREW_TAP_TOKEN` repository
+secret is set (fine-grained PAT with **Contents: Read and write** access to `SLyHuy/homebrew-tap`). CI
+runs the tests and builds on every pull request and push to `main`.
 
 ### How it works
 
